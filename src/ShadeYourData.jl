@@ -19,7 +19,6 @@ ylims(c::Canvas) = (c.ymin, c.ymax)
 
 abstract type AggOp end
 
-data(h::AggOp) = ()
 update(a::AggOp, x, args...) = merge(a, x, embed(a, args...))
 
 struct AggCount{T} <: AggOp end
@@ -36,27 +35,22 @@ embed(a::AggAny{T}) where {T} = oneunit(T)
 merge(a::AggAny{T}, x::T, y::T) where {T} = max(x, y)
 value(a::AggAny{T}, x::T) where {T} = x
 
-struct AggSum{T,D} <: AggOp
-    data :: D
-end
-AggSum(data) = AggSum{eltype(data), typeof(data)}(data)
-data(a::AggSum) = (a.data,)
+struct AggSum{T} <: AggOp end
+AggSum() = AggSum{Float64}()
 null(a::AggSum{T}) where {T} = zero(T)
 embed(a::AggSum{T}, x) where {T} = convert(T, x)
 merge(a::AggSum{T}, x::T, y::T) where {T} = x + y
 value(a::AggSum{T}, x::T) where {T} = x
 
-struct AggMean{T,N,D} <: AggOp
-    data :: D
-end
-AggMean(data) = AggMean{eltype(data), Int, typeof(data)}(data)
-data(a::AggMean) = (a.data,)
+struct AggMean{T,N} <: AggOp end
+AggMean{T}() where {T} = AggMean{T,Int}()
+AggMean() = AggMean{Float64}()
 null(a::AggMean{T,N}) where {T,N} = zero(T), zero(N)
 embed(a::AggMean{T,N}, x) where {T,N} = convert(T,x), oneunit(N)
 merge(a::AggMean{T,N}, x::Tuple{T,N}, y::Tuple{T,N}) where {T,N} = x[1]+y[1], x[2]+y[2]
-value(a::AggMean{T,N}, x::Tuple{T,N}) where {T,N} = iszero(x[2]) ? oftype(float(x[1])/float(x[2]), NaN) : float(x[1])/float(x[2])
+value(a::AggMean{T,N}, x::Tuple{T,N}) where {T,N} = float(x[1]) / float(x[2])
 
-function aggregate(c::Canvas, xs, ys; op::AggOp=AggCount())
+function aggregate(c::Canvas, xs, ys, zs...; op::AggOp=AggCount())
     xmin, xmax = xlims(c)
     ymin, ymax = ylims(c)
     xsize, ysize = size(c)
@@ -65,7 +59,7 @@ function aggregate(c::Canvas, xs, ys; op::AggOp=AggCount())
     xscale = 1 / (xmax - xmin)
     yscale = 1 / (ymax - ymin)
     out = fill(null(op), xsize, ysize)
-    for row in zip(xs, ys, data(op)...)
+    for row in zip(xs, ys, zs...)
         x = row[1]
         y = row[2]
         z = row[3:end]
@@ -139,8 +133,8 @@ function autospread_old(img::AbstractMatrix, rmax::Integer=5, op=max; thresh=0.2
     return outmax
 end
 
-canvas_node(c::Node{<:Canvas}) = c
 canvas_node(c::Canvas) = Node{Canvas}(c)
+canvas_node(c::Node{<:Canvas}) = c
 
 function __init__()
     @require MakieLayout="5a521ce4-ebb9-4793-b5b7-b334dfe8393c" begin
@@ -153,32 +147,75 @@ function __init__()
     end    
 end
 
-set_limits!(scene, how, xs, ys) =
-    if (how === :extrema) || (how === true)
-        xlims!(scene, extrema(xs))
-        ylims!(scene, extrema(ys))
-        return
-    elseif (how === nothing) || (how === false)
-        return
-    elseif how isa Node
-        scene.limits = how
-    else
-        scene.limits[] = how
-    end
+"""
+    datashade!(scene, x, y, ...; agg=AggCount(), post=identity, colorize=nothing, opts...)
 
-function datashade!(scene::AbstractScene, xs, ys; op::Union{<:AggOp,Node{<:AggOp}}=AggCount(), post=identity, limits=true, xautolimits=false, yautolimits=false, opts...)
-    op = op isa Node ? op : Node{AggOp}(op)
-    post = post isa Node ? post : Node{Function}(post)
+Shade your data into the given scene at co-ordinates `x` and `y`.
+
+Each pixel is some aggregate of the data points in that pixel, controlled by `agg`. By default, each pixel represents the number of points.
+
+The resulting matrix of aggregated values is then post-processed by `post`, if given. For example you could apply a pointwise map to the values, or use `spread` or `autospread`.
+
+If `colorize` is given, it is a map which converts the post-processed matrix into an image (a matrix of colors). Otherwise, a heatmap is plotted.
+
+All other options are passed on to the plotting command.
+"""
+function datashade!(scene::AbstractScene, x, y, z...; colorize=nothing, opts...)
     c = canvas_node(scene)
-    xrange = lift(c -> c.xmin .. c.xmax, c)
-    yrange = lift(c -> c.ymin .. c.ymax, c)
-    pixels = lift(c, op, post) do c, op, post
-        float(post(aggregate(c, xs, ys; op=op)))
+    if isnothing(colorize)
+        datashadeheatmap!(scene, c, x, y, z...; opts...)
+    else
+        datashadeimage!(scene, c, x, y, x...; colorize=colorize, opts...)
     end
-    plot = heatmap!(scene, xrange, yrange, pixels; xautolimits=xautolimits, yautolimits=yautolimits, opts...)
-    set_limits!(scene, limits, xs, ys)
-    nodes = (op=op, canvas=c, xrange=xrange, yrange=yrange, pixels=pixels, post=post)
-    plot, nodes
+end
+
+@recipe(DataShadeHeatmap, canvas, x, y, z) do scene
+    th = default_theme(scene, Heatmap)
+    th.agg = AggCount()
+    th.post = identity
+    th
+end
+
+@recipe(DataShadeImage, canvas, x, y, z) do scene
+    th = default_theme(scene, Image)
+    th.agg = AggCount()
+    th.post = identity
+    th.colormap = identity
+    th
+end
+
+function AbstractPlotting.plot!(p::DataShadeHeatmap{<:Tuple{Canvas,Vararg}})
+    global LAST_PLOT = p
+    xrange = lift(c -> c.xmin .. c.xmax, p.canvas)
+    yrange = lift(c -> c.ymin .. c.ymax, p.canvas)
+    pixels = lift(p.agg, p.post, p.converted...) do agg, post, args...
+        float(post(aggregate(args...; op=agg)))
+    end
+    th = Theme()
+    for k in keys(default_theme(p.parent, Heatmap))
+        th[k] = p[k]
+    end
+    heatmap!(p, xrange, yrange, pixels; th...)
+end
+
+function AbstractPlotting.plot!(p::DataShadeImage{<:Tuple{Canvas,Vararg}})
+    global LAST_PLOT = p
+    xrange = lift(c -> c.xmin .. c.xmax, p.canvas)
+    yrange = lift(c -> c.ymin .. c.ymax, p.canvas)
+    pixels = lift(p.agg, p.post, p.colorize, p.converted...) do agg, post, colorize, args...
+        colorize(post(aggregate(args...; op=agg)))
+    end
+    th = Theme()
+    for k in keys(default_theme(p.parent, Image))
+        th[k] = p[k]
+    end
+    image!(p, xrange, yrange, pixels; th...)
+end
+
+function AbstractPlotting.data_limits(p::Union{DataShadeHeatmap{<:Tuple{Canvas,Vararg}}, DataShadeImage{<:Tuple{Canvas, Vararg}}})
+    xmin, xmax = extrema(p.x[])
+    ymin, ymax = extrema(p.y[])
+    FRect3D([xmin, ymin, 0], [xmax-xmin, ymax-ymin, 0])
 end
 
 end # module
