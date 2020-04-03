@@ -12,9 +12,9 @@ See the example below, or read the docstring for `datashade!`.
 
 ## Example
 
-In this example, we plot all 2.6M UK postcodes from [this dataset](https://www.doogal.co.uk/PostcodeDownloads.php).
+In this example, we plot all 2.6M UK postcodes from [this dataset](https://www.doogal.co.uk/PostcodeDownloads.php). Click the following link to see it in action.
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/svG6fCjVbEg" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+[![ShadeYourData.jl demo thumbnail](http://img.youtube.com/vi/svG6fCjVbEg/0.jpg)](http://www.youtube.com/watch?v=svG6fCjVbEg "ShadeYourData.jl demo")
 
 ```
 # ShadeYourData works best with MakieLayout
