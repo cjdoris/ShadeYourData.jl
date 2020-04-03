@@ -20,7 +20,7 @@ You can watch it in action [here](http://www.youtube.com/watch?v=svG6fCjVbEg "Sh
 
 ```julia
 # ShadeYourData works best with MakieLayout
-using CSV, Makie, MakieLayout, ShadeYourData
+using CSV, DataFrames, Makie, MakieLayout, ShadeYourData
 
 # load the dataset
 df = CSV.read("/path/to/postcodes.csv", copycols=true)
@@ -28,16 +28,19 @@ dropmissing!(df, [:Easting, :Northing])
 
 # set up a new scene
 scene, layout = layoutscene()
-ax = layout[1,1] = LAxis(scene, aspect=DataAspect())
+ax = layout[1,1] = LAxis(scene)
 
-# `datashade!` is the main plotting routine we provide, it returns the plot and a namedtuple of `Node`s that the plot depends on
-ds, dsattr = datashade!(ax, df.Easting, df.Northing, colormap=:dense, limits=false)
-
-# manually set the limits
-ax.targetlimits[] = FRect(-300_000, -100_000, 1_200_000, 1_200_000)
+# `datashade!` is the main plotting routine we provide
+ds = datashade!(ax, df.Easting, df.Northing, colormap=:dense)
 
 # post-process the aggregated image by applying an autospread (makes points bigger when they are spread out) and rescaling by `log1p` to lessen the extremal values
-dsattr.post[] = x -> log1p.(ShadeYourData.autospread(x))
+ds.post = x -> log1p.(ShadeYourData.autospread(x))
+
+# force the data aspect ratio to be 1
+# you can achieve the same with just `ax.autolimitaspect = true`, but currently zooming doesn't work well when you do this
+ax.aspect = DataAspect()
+xlims!(ax, -300_000, 900_000)
+ylims!(ax, -100_000, 1_100_000)
 
 # take a look
 display(scene)
