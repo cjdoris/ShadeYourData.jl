@@ -4,6 +4,12 @@
 1. A cheap clone of [datashader.org](https://datashader.org) for Julia.
 2. Interactive plotting of millions of data points.
 
+## Getting started
+
+Install like so: `] add https://github.com/cjdoris/ShadeYourData.jl`.
+
+See the example below, or read the docstring for `datashade!`.
+
 ## Example
 
 In this example, we plot all 2.6M UK postcodes from [this dataset](https://www.doogal.co.uk/PostcodeDownloads.php).
