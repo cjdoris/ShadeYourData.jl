@@ -12,11 +12,13 @@ See the example below, or read the docstring for `datashade!`.
 
 ## Example
 
-In this example, we plot all 2.6M UK postcodes from [this dataset](https://www.doogal.co.uk/PostcodeDownloads.php). Click the following link to see it in action.
+In this example, we plot all 2.6M UK postcodes from [this dataset](https://www.doogal.co.uk/PostcodeDownloads.php).
+
+Click the following link to see it in action. Notice that when zoomed out, the density of points is shown via a colormap, but as we zoom in and the points get separated, we plot them bigger so you can see them individually.
 
 [![ShadeYourData.jl demo thumbnail](http://img.youtube.com/vi/svG6fCjVbEg/0.jpg)](http://www.youtube.com/watch?v=svG6fCjVbEg "ShadeYourData.jl demo")
 
-```
+```julia
 # ShadeYourData works best with MakieLayout
 using CSV, Makie, MakieLayout, ShadeYourData
 
